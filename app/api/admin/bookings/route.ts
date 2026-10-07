@@ -1,0 +1,2 @@
+import {NextResponse} from 'next/server'; import {cookies} from 'next/headers'; import {isValid,cookieName} from '@/lib/admin'; import {prisma} from '@/lib/prisma';
+export async function GET(){const c=await cookies();if(!isValid(c.get(cookieName)?.value))return NextResponse.json({error:'Unauthorized'},{status:401});const rows=await prisma.booking.findMany({orderBy:[{date:'asc'},{startTime:'asc'}]});return NextResponse.json(rows);}
