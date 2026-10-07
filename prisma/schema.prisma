@@ -46,6 +46,13 @@ model Booking {
   notes         String?
   status        BookingStatus @default(PENDING)
   paymentStatus PaymentStatus @default(UNPAID)
+
+  // Payment information
+  amount        Int?
+  paymentMethod String?
+  paymentId     String?
+  paidAt        DateTime?
+
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 

@@ -8,13 +8,31 @@ type Slot = {
   booked: boolean;
 };
 
-const rate = Number(process.env.NEXT_PUBLIC_HOURLY_RATE || 500);
+const rate = Number(
+  process.env.NEXT_PUBLIC_HOURLY_RATE || 500
+);
+
+function getLocalDate() {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(
+    2,
+    "0"
+  );
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 
 export default function BookingWidget() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDate();
 
   const [date, setDate] = useState(today);
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [slotsError, setSlotsError] = useState("");
+
   const [selected, setSelected] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -32,38 +50,90 @@ export default function BookingWidget() {
   });
 
   /*
-   * Load available slots whenever the date changes
+   * Load available slots whenever the date changes.
    */
   useEffect(() => {
-    setSelected([]);
-    setMessage(null);
+    let cancelled = false;
 
-    fetch(`/api/bookings?date=${date}`)
-      .then((r) => r.json())
-      .then((d) => setSlots(d.slots || []));
+    async function loadSlots() {
+      setSlotsLoading(true);
+      setSlotsError("");
+      setSelected([]);
+      setMessage(null);
+
+      try {
+        const response = await fetch(
+          `/api/bookings?date=${encodeURIComponent(date)}`,
+          {
+            cache: "no-store",
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.error || "Could not load available times."
+          );
+        }
+
+        if (!cancelled) {
+          setSlots(data.slots || []);
+        }
+      } catch (error) {
+        console.error(
+          "Could not load booking slots:",
+          error
+        );
+
+        if (!cancelled) {
+          setSlots([]);
+          setSlotsError(
+            error instanceof Error
+              ? error.message
+              : "Could not load available times."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setSlotsLoading(false);
+        }
+      }
+    }
+
+    loadSlots();
+
+    return () => {
+      cancelled = true;
+    };
   }, [date]);
 
+  /*
+   * Update form fields.
+   */
   const update = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >
   ) => {
-    setForm({
-      ...form,
+    setForm((current) => ({
+      ...current,
       [e.target.name]: e.target.value,
-    });
+    }));
   };
 
   /*
-   * Check if a slot is currently selected
+   * Check if a slot is selected.
    */
   const isSelected = (slot: Slot) => {
-    return selected.some((s) => s.startTime === slot.startTime);
+    return selected.some(
+      (s) => s.startTime === slot.startTime
+    );
   };
 
   /*
-   * Check whether selecting this slot would keep
-   * the booking continuous.
+   * Check whether selecting this slot
+   * keeps the booking continuous.
    */
   const canSelectSlot = (slot: Slot) => {
     if (selected.length === 0) {
@@ -77,12 +147,12 @@ export default function BookingWidget() {
     const first = sorted[0];
     const last = sorted[sorted.length - 1];
 
-    // Allow extending before the current selection
+    // Extend before current selection
     if (slot.endTime === first.startTime) {
       return true;
     }
 
-    // Allow extending after the current selection
+    // Extend after current selection
     if (last.endTime === slot.startTime) {
       return true;
     }
@@ -91,30 +161,39 @@ export default function BookingWidget() {
   };
 
   /*
-   * Handle slot click
+   * Handle slot click.
    */
   const handleSlotClick = (slot: Slot) => {
-    if (slot.booked) return;
-
-    setMessage(null);
-
-    // If already selected, remove it
-    if (isSelected(slot)) {
-      const newSelected = selected.filter(
-        (s) => s.startTime !== slot.startTime
-      );
-
-      setSelected(newSelected);
+    if (slot.booked || loading) {
       return;
     }
 
-    // First selection
+    setMessage(null);
+
+    /*
+     * Remove selected slot.
+     */
+    if (isSelected(slot)) {
+      setSelected((current) =>
+        current.filter(
+          (s) => s.startTime !== slot.startTime
+        )
+      );
+
+      return;
+    }
+
+    /*
+     * First selection.
+     */
     if (selected.length === 0) {
       setSelected([slot]);
       return;
     }
 
-    // Only allow continuous booking
+    /*
+     * Only allow consecutive hours.
+     */
     if (!canSelectSlot(slot)) {
       setMessage({
         ok: false,
@@ -124,11 +203,11 @@ export default function BookingWidget() {
       return;
     }
 
-    setSelected([...selected, slot]);
+    setSelected((current) => [...current, slot]);
   };
 
   /*
-   * Sort selected slots by start time
+   * Sort selected slots.
    */
   const sortedSelected = useMemo(() => {
     return [...selected].sort((a, b) =>
@@ -137,25 +216,27 @@ export default function BookingWidget() {
   }, [selected]);
 
   /*
-   * Booking start time
+   * Booking start time.
    */
-  const startTime = sortedSelected[0]?.startTime || null;
+  const startTime =
+    sortedSelected[0]?.startTime || null;
 
   /*
-   * Booking end time
+   * Booking end time.
    */
   const endTime =
     sortedSelected.length > 0
-      ? sortedSelected[sortedSelected.length - 1].endTime
+      ? sortedSelected[sortedSelected.length - 1]
+          .endTime
       : null;
 
   /*
-   * Number of hours
+   * Number of hours.
    */
   const hours = selected.length;
 
   /*
-   * Total price
+   * Total price.
    */
   const total = hours * rate;
 
@@ -168,14 +249,18 @@ export default function BookingWidget() {
   }, [startTime, endTime]);
 
   /*
-   * Submit booking
+   * Submit booking and create PayMongo checkout.
    */
   async function submit(e: React.FormEvent) {
     e.preventDefault();
 
     setMessage(null);
 
-    if (selected.length === 0 || !startTime || !endTime) {
+    if (
+      selected.length === 0 ||
+      !startTime ||
+      !endTime
+    ) {
       setMessage({
         ok: false,
         text: "Please select at least one available time slot.",
@@ -187,65 +272,128 @@ export default function BookingWidget() {
     setLoading(true);
 
     try {
-      const r = await fetch("/api/bookings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...form,
-          date,
-          startTime,
-          endTime,
-          hours,
-        }),
-      });
+      /*
+       * STEP 1
+       * Create PENDING booking.
+       */
+      const bookingResponse = await fetch(
+        "/api/bookings",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...form,
+            date,
+            startTime,
+            endTime,
+            hours,
+          }),
+        }
+      );
 
-      const d = await r.json();
+      const bookingData =
+        await bookingResponse.json();
 
-      if (!r.ok) {
+      if (!bookingResponse.ok) {
         setMessage({
           ok: false,
-          text: d.error || "Booking failed.",
+          text:
+            bookingData.error ||
+            "Could not create booking.",
         });
 
         setLoading(false);
         return;
       }
 
-      setMessage({
-        ok: true,
-        text: `Booking confirmed! Reference: ${d.booking.reference}`,
-      });
+      const booking =
+        bookingData.booking;
 
-      setForm({
-        customerName: "",
-        email: "",
-        phone: "",
-        players: "2",
-        notes: "",
-      });
+      /*
+       * Make sure we received a booking ID.
+       */
+      if (!booking?.id) {
+        throw new Error(
+          "Booking was created but no booking ID was returned."
+        );
+      }
 
-      setSelected([]);
+      /*
+       * STEP 2
+       * Create PayMongo Checkout Session.
+       */
+      const paymentResponse = await fetch(
+        "/api/payments/create",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            bookingId: booking.id,
+          }),
+        }
+      );
 
-      fetch(`/api/bookings?date=${date}`)
-        .then((r) => r.json())
-        .then((d) => setSlots(d.slots || []));
-    } catch {
+      const paymentData =
+        await paymentResponse.json();
+
+      if (!paymentResponse.ok) {
+        setMessage({
+          ok: false,
+          text:
+            paymentData.error ||
+            "Could not start payment.",
+        });
+
+        setLoading(false);
+        return;
+      }
+
+      /*
+       * Make sure PayMongo returned
+       * a checkout URL.
+       */
+      if (!paymentData.checkoutUrl) {
+        throw new Error(
+          "PayMongo did not return a checkout URL."
+        );
+      }
+
+      /*
+       * STEP 3
+       * Redirect customer to PayMongo.
+       */
+      window.location.href =
+        paymentData.checkoutUrl;
+    } catch (error) {
+      console.error(
+        "Booking/payment error:",
+        error
+      );
+
       setMessage({
         ok: false,
-        text: "Something went wrong. Please try again.",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Something went wrong. Please try again.",
       });
-    }
 
-    setLoading(false);
+      setLoading(false);
+    }
   }
 
   return (
     <div className="booking-shell">
       <div className="booking-grid">
 
-        {/* LEFT SIDE */}
+        {/* =====================================
+            LEFT SIDE - DATE & TIME
+        ====================================== */}
+
         <div>
           <div className="calendar-title">
             Choose your date & time
@@ -258,50 +406,101 @@ export default function BookingWidget() {
               type="date"
               min={today}
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) =>
+                setDate(e.target.value)
+              }
             />
           </div>
 
           <div
             className="small"
-            style={{ margin: "10px 0 12px" }}
+            style={{
+              margin: "10px 0 12px",
+            }}
           >
-            ₱{rate.toLocaleString()} / hour · 1 court ·
-            6:00 AM–10:00 PM
+            ₱{rate.toLocaleString()} / hour · 1
+            court · 6:00 AM–10:00 PM
           </div>
 
-          {/* SLOTS */}
-          <div className="slots">
-            {slots.map((slot) => {
-              const active = isSelected(slot);
+          {/* =================================
+              TIME SLOTS
+          ================================== */}
 
-              return (
-                <button
-                  type="button"
-                  key={slot.startTime}
-                  disabled={slot.booked}
-                  className={`slot ${
-                    slot.booked ? "booked" : ""
-                  } ${active ? "selected" : ""}`}
-                  onClick={() => handleSlotClick(slot)}
-                >
-                  <strong>{slot.startTime}</strong>
+          {slotsLoading ? (
+            <div className="small">
+              Loading available times...
+            </div>
+          ) : slotsError ? (
+            <div className="notice error">
+              <div>{slotsError}</div>
 
-                  <br />
+              <button
+                type="button"
+                className="btn"
+                style={{
+                  marginTop: "10px",
+                }}
+                onClick={() =>
+                  setDate((current) => current)
+                }
+              >
+                Try again
+              </button>
+            </div>
+          ) : slots.length === 0 ? (
+            <div className="notice error">
+              No available time slots were returned
+              for this date.
+            </div>
+          ) : (
+            <div className="slots">
+              {slots.map((slot) => {
+                const active =
+                  isSelected(slot);
 
-                  <span className="small">
-                    {slot.booked
-                      ? "Booked"
-                      : active
-                      ? "Selected"
-                      : `₱${rate.toLocaleString()}`}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                return (
+                  <button
+                    type="button"
+                    key={slot.startTime}
+                    disabled={
+                      slot.booked || loading
+                    }
+                    className={`slot ${
+                      slot.booked
+                        ? "booked"
+                        : ""
+                    } ${
+                      active
+                        ? "selected"
+                        : ""
+                    }`}
+                    onClick={() =>
+                      handleSlotClick(slot)
+                    }
+                  >
+                    <strong>
+                      {slot.startTime}
+                    </strong>
 
-          {/* SELECTION INFO */}
+                    <br />
+
+                    <span className="small">
+                      {slot.booked
+                        ? "Booked"
+                        : active
+                        ? "Selected"
+                        : `₱${rate.toLocaleString()}`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* =================================
+              SELECTION INFO
+          ================================== */}
+
           {selected.length > 0 && (
             <div
               className="selection-info"
@@ -323,7 +522,10 @@ export default function BookingWidget() {
                 <span>Duration</span>
 
                 <strong>
-                  {hours} {hours === 1 ? "hour" : "hours"}
+                  {hours}{" "}
+                  {hours === 1
+                    ? "hour"
+                    : "hours"}
                 </strong>
               </div>
 
@@ -338,7 +540,10 @@ export default function BookingWidget() {
           )}
         </div>
 
-        {/* RIGHT SIDE */}
+        {/* =====================================
+            RIGHT SIDE - BOOKING FORM
+        ====================================== */}
+
         <form onSubmit={submit}>
           <div className="calendar-title">
             Your booking details
@@ -347,7 +552,9 @@ export default function BookingWidget() {
           {message && (
             <div
               className={`notice ${
-                message.ok ? "success" : "error"
+                message.ok
+                  ? "success"
+                  : "error"
               }`}
             >
               {message.text}
@@ -360,9 +567,12 @@ export default function BookingWidget() {
             <input
               required
               name="customerName"
-              value={form.customerName}
+              value={
+                form.customerName
+              }
               onChange={update}
               placeholder="Juan Dela Cruz"
+              disabled={loading}
             />
           </div>
 
@@ -376,6 +586,7 @@ export default function BookingWidget() {
               value={form.email}
               onChange={update}
               placeholder="juan@email.com"
+              disabled={loading}
             />
           </div>
 
@@ -388,27 +599,38 @@ export default function BookingWidget() {
               value={form.phone}
               onChange={update}
               placeholder="09XXXXXXXXX"
+              disabled={loading}
             />
           </div>
 
           <div className="field">
-            <label>Number of players</label>
+            <label>
+              Number of players
+            </label>
 
             <select
               name="players"
               value={form.players}
               onChange={update}
+              disabled={loading}
             >
-              {[2, 3, 4, 5, 6, 7, 8].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
+              {[2, 3, 4, 5, 6, 7, 8].map(
+                (n) => (
+                  <option
+                    key={n}
+                    value={n}
+                  >
+                    {n}
+                  </option>
+                )
+              )}
             </select>
           </div>
 
           <div className="field">
-            <label>Notes (optional)</label>
+            <label>
+              Notes (optional)
+            </label>
 
             <textarea
               rows={3}
@@ -416,13 +638,19 @@ export default function BookingWidget() {
               value={form.notes}
               onChange={update}
               placeholder="Any special request?"
+              disabled={loading}
             />
           </div>
 
-          {/* SUMMARY */}
+          {/* =================================
+              SUMMARY
+          ================================== */}
+
           <div className="summary">
             <div className="summary-row">
-              <span>Selected time</span>
+              <span>
+                Selected time
+              </span>
 
               <strong>
                 {selectedLabel}
@@ -433,7 +661,10 @@ export default function BookingWidget() {
               <span>Duration</span>
 
               <strong>
-                {hours} {hours === 1 ? "hour" : "hours"}
+                {hours}{" "}
+                {hours === 1
+                  ? "hour"
+                  : "hours"}
               </strong>
             </div>
 
@@ -441,7 +672,8 @@ export default function BookingWidget() {
               <span>Rate</span>
 
               <strong>
-                ₱{rate.toLocaleString()} / hour
+                ₱{rate.toLocaleString()} /
+                hour
               </strong>
             </div>
 
@@ -454,22 +686,35 @@ export default function BookingWidget() {
             </div>
           </div>
 
+          {/* =================================
+              PAYMENT BUTTON
+          ================================== */}
+
           <button
+            type="submit"
             className="btn btn-primary"
-            style={{ width: "100%" }}
-            disabled={loading || selected.length === 0}
+            style={{
+              width: "100%",
+            }}
+            disabled={
+              loading ||
+              selected.length === 0 ||
+              slotsLoading
+            }
           >
-            {loading ? "Booking..." : "Reserve Court"}
+            {loading
+              ? "Preparing payment..."
+              : selected.length === 0
+              ? "Select a Time"
+              : `Continue to Payment — ₱${total.toLocaleString()}`}
           </button>
 
           <p className="small center">
-            You can connect GCash/Maya/PayMongo later.
-            This starter keeps payment status ready in
-            the database.
+            You will be redirected to PayMongo
+            to complete your payment securely.
           </p>
         </form>
       </div>
     </div>
   );
 }
-
