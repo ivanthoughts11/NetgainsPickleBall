@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
@@ -6,6 +7,8 @@ import {
   HOURLY_RATE,
   reference,
 } from "@/lib/booking";
+
+const PENDING_HOLD_MINUTES = 15;
 
 function slots() {
   return Array.from(
@@ -23,14 +26,56 @@ function slots() {
 
 function timeToMinutes(time: string) {
   const [hours, minutes] = time.split(":").map(Number);
-
   return hours * 60 + minutes;
 }
 
-/*
- * GET
- * Returns all hourly slots and marks a slot as booked
- * if it overlaps an existing booking.
+/**
+ * Returns bookings that should currently block a court slot.
+ *
+ * CANCELLED bookings never block availability.
+ * CONFIRMED, COMPLETED, and PAID bookings block availability.
+ * PENDING_VERIFICATION bookings remain blocked until resolved.
+ * PENDING + UNPAID bookings hold a slot for 15 minutes.
+ */
+function activeBookingFilter(courtId: string, date: Date) {
+  const holdCutoff = new Date(
+    Date.now() - PENDING_HOLD_MINUTES * 60 * 1000
+  );
+
+  return {
+    courtId,
+    date,
+    status: {
+      not: "CANCELLED" as const,
+    },
+    OR: [
+      {
+        status: "CONFIRMED" as const,
+      },
+      {
+        status: "COMPLETED" as const,
+      },
+      {
+        paymentStatus: "PAID" as const,
+      },
+      {
+        paymentStatus: "PENDING_VERIFICATION" as const,
+      },
+      {
+        status: "PENDING" as const,
+        paymentStatus: "UNPAID" as const,
+        createdAt: {
+          gte: holdCutoff,
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * GET /api/bookings?date=YYYY-MM-DD
+ *
+ * Returns hourly slots and whether each slot is booked.
  */
 export async function GET(req: Request) {
   try {
@@ -39,6 +84,14 @@ export async function GET(req: Request) {
     if (!date) {
       return NextResponse.json(
         { error: "date required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate date format and calendar date.
+    if (!isValidDateString(date)) {
+      return NextResponse.json(
+        { error: "Invalid date." },
         { status: 400 }
       );
     }
@@ -57,43 +110,23 @@ export async function GET(req: Request) {
     }
 
     const bookings = await prisma.booking.findMany({
-      where: {
-        courtId: court.id,
-        date: new Date(`${date}T00:00:00`),
-        status: {
-          not: "CANCELLED",
-        },
-      },
+      where: activeBookingFilter(
+        court.id,
+        new Date(`${date}T00:00:00`)
+      ),
       select: {
         startTime: true,
         endTime: true,
       },
     });
 
-    /*
-     * A slot is booked when it overlaps
-     * an existing booking.
-     *
-     * Example:
-     * Booking = 06:00 - 09:00
-     *
-     * 06:00 -> booked
-     * 07:00 -> booked
-     * 08:00 -> booked
-     * 09:00 -> available
-     */
     const result = slots().map((slot) => {
       const slotStart = timeToMinutes(slot.startTime);
       const slotEnd = timeToMinutes(slot.endTime);
 
       const booked = bookings.some((booking) => {
-        const bookingStart = timeToMinutes(
-          booking.startTime
-        );
-
-        const bookingEnd = timeToMinutes(
-          booking.endTime
-        );
+        const bookingStart = timeToMinutes(booking.startTime);
+        const bookingEnd = timeToMinutes(booking.endTime);
 
         return (
           slotStart < bookingEnd &&
@@ -112,32 +145,21 @@ export async function GET(req: Request) {
       court,
       rate: HOURLY_RATE,
     });
-  } catch (e) {
-    console.error(e);
+  } catch (error) {
+    console.error("GET /api/bookings error:", error);
 
     return NextResponse.json(
-      {
-        error: "Could not load available slots.",
-      },
+      { error: "Could not load available slots." },
       { status: 500 }
     );
   }
 }
 
-/*
- * POST
- * Creates a booking for one or more consecutive hours.
+/**
+ * POST /api/bookings
  *
- * IMPORTANT:
- * The booking is NOT confirmed yet.
- *
- * It starts as:
- *
- * status        = PENDING
- * paymentStatus = UNPAID
- *
- * PayMongo will confirm the booking after
- * successful payment.
+ * Creates a booking with PENDING + UNPAID status.
+ * PayMongo webhook handles payment confirmation.
  */
 export async function POST(req: Request) {
   try {
@@ -154,9 +176,7 @@ export async function POST(req: Request) {
       notes,
     } = body;
 
-    /*
-     * Validate required fields.
-     */
+    // Validate required fields.
     if (
       !date ||
       !startTime ||
@@ -166,16 +186,45 @@ export async function POST(req: Request) {
       !phone
     ) {
       return NextResponse.json(
-        {
-          error: "Please complete all required fields.",
-        },
+        { error: "Please complete all required fields." },
         { status: 400 }
       );
     }
 
-    /*
-     * Find active court.
-     */
+    if (!isValidDateString(date)) {
+      return NextResponse.json(
+        { error: "Invalid date." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      typeof customerName !== "string" ||
+      typeof email !== "string" ||
+      typeof phone !== "string" ||
+      !customerName.trim() ||
+      !email.trim() ||
+      !phone.trim()
+    ) {
+      return NextResponse.json(
+        { error: "Please provide valid customer details." },
+        { status: 400 }
+      );
+    }
+
+    const numberOfPlayers = Number(players);
+
+    if (
+      !Number.isInteger(numberOfPlayers) ||
+      numberOfPlayers < 1
+    ) {
+      return NextResponse.json(
+        { error: "Invalid number of players." },
+        { status: 400 }
+      );
+    }
+
+    // Find active court.
     const court = await prisma.court.findFirst({
       where: {
         active: true,
@@ -184,16 +233,12 @@ export async function POST(req: Request) {
 
     if (!court) {
       return NextResponse.json(
-        {
-          error: "No active court.",
-        },
+        { error: "No active court." },
         { status: 404 }
       );
     }
 
-    /*
-     * Validate start and end times.
-     */
+    // Validate booking times against available hourly slots.
     const availableSlots = slots();
 
     const startSlot = availableSlots.find(
@@ -206,9 +251,7 @@ export async function POST(req: Request) {
 
     if (!startSlot || !endSlot) {
       return NextResponse.json(
-        {
-          error: "Invalid booking time.",
-        },
+        { error: "Invalid booking time." },
         { status: 400 }
       );
     }
@@ -216,225 +259,148 @@ export async function POST(req: Request) {
     const startMinutes = timeToMinutes(startTime);
     const endMinutes = timeToMinutes(endTime);
 
-    /*
-     * End time must be after start time.
-     */
     if (endMinutes <= startMinutes) {
       return NextResponse.json(
-        {
-          error: "Invalid booking duration.",
-        },
+        { error: "Invalid booking duration." },
         { status: 400 }
       );
     }
 
-    /*
-     * Calculate number of hours.
-     */
-    const hours = (endMinutes - startMinutes) / 60;
-
-    /*
-     * Make sure the booking is a whole number
-     * of hours.
-     */
-    if (!Number.isInteger(hours)) {
-      return NextResponse.json(
-        {
-          error: "Booking duration must be in whole hours.",
-        },
-        { status: 400 }
-      );
-    }
-
-    /*
-     * Make sure the booking is within
-     * operating hours.
-     */
     if (
       startMinutes < OPEN_HOUR * 60 ||
       endMinutes > CLOSE_HOUR * 60
     ) {
       return NextResponse.json(
-        {
-          error: "Booking is outside operating hours.",
-        },
+        { error: "Booking is outside operating hours." },
         { status: 400 }
       );
     }
 
-    /*
-     * Calculate total price.
-     *
-     * Example:
-     *
-     * 3 hours × ₱500 = ₱1,500
-     */
+    const hours = (endMinutes - startMinutes) / 60;
+
+    if (!Number.isInteger(hours) || hours <= 0) {
+      return NextResponse.json(
+        { error: "Booking duration must be in whole hours." },
+        { status: 400 }
+      );
+    }
+
+    // Calculate booking amount.
     const total = hours * HOURLY_RATE;
 
     if (!Number.isFinite(total) || total <= 0) {
       return NextResponse.json(
-        {
-          error: "Invalid booking amount.",
-        },
+        { error: "Invalid booking amount." },
         { status: 400 }
       );
     }
 
-    /*
-     * PayMongo uses the smallest currency unit.
-     *
-     * ₱500   = 50000 centavos
-     * ₱1000  = 100000 centavos
-     * ₱1500  = 150000 centavos
-     */
-    const amountInCentavos = Math.round(
-      total * 100
-    );
+    // PayMongo expects the amount in centavos.
+    const amountInCentavos = Math.round(total * 100);
 
-    /*
-     * Check for overlapping bookings.
-     */
-    const existingBookings =
-      await prisma.booking.findMany({
-        where: {
-          courtId: court.id,
-          date: new Date(`${date}T00:00:00`),
-          status: {
-            not: "CANCELLED",
-          },
-        },
-        select: {
-          startTime: true,
-          endTime: true,
-        },
-      });
+    const bookingDate = new Date(`${date}T00:00:00`);
 
-    const hasOverlap = existingBookings.some(
-      (booking) => {
-        const bookingStart = timeToMinutes(
-          booking.startTime
-        );
+    // Check for overlaps with bookings that still hold their slots.
+    const existingBookings = await prisma.booking.findMany({
+      where: activeBookingFilter(court.id, bookingDate),
+      select: {
+        startTime: true,
+        endTime: true,
+      },
+    });
 
-        const bookingEnd = timeToMinutes(
-          booking.endTime
-        );
+    const hasOverlap = existingBookings.some((booking) => {
+      const bookingStart = timeToMinutes(booking.startTime);
+      const bookingEnd = timeToMinutes(booking.endTime);
 
-        return (
-          startMinutes < bookingEnd &&
-          endMinutes > bookingStart
-        );
-      }
-    );
+      return (
+        startMinutes < bookingEnd &&
+        endMinutes > bookingStart
+      );
+    });
 
     if (hasOverlap) {
       return NextResponse.json(
         {
           error:
-            "One or more of the selected time slots have already been booked. Please choose another time.",
+            "One or more selected time slots are unavailable. Please choose another time.",
         },
         { status: 409 }
       );
     }
 
-    /*
-     * Create the booking.
-     *
-     * IMPORTANT:
-     *
-     * We do NOT set CONFIRMED here.
-     *
-     * Payment has not happened yet.
-     */
+    // Create a pending booking. It is not confirmed until payment succeeds.
     const booking = await prisma.booking.create({
       data: {
         reference: reference(),
-
         courtId: court.id,
-
-        date: new Date(
-          `${date}T00:00:00`
-        ),
-
+        date: bookingDate,
         startTime,
         endTime,
-
-        customerName,
-        email,
-        phone,
-
-        players: Number(players),
-
-        notes: notes || null,
-
-        /*
-         * Payment flow
-         */
+        customerName: customerName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        players: numberOfPlayers,
+        notes:
+          typeof notes === "string" && notes.trim()
+            ? notes.trim()
+            : null,
         status: "PENDING",
         paymentStatus: "UNPAID",
-
-        /*
-         * Store amount in centavos.
-         */
         amount: amountInCentavos,
-
-        /*
-         * These will be filled by the
-         * PayMongo webhook later.
-         */
         paymentMethod: null,
         paymentId: null,
         paidAt: null,
       },
     });
 
-    /*
-     * Return booking information.
-     *
-     * We will use booking.id/reference
-     * in the next PayMongo API step.
-     */
     return NextResponse.json(
       {
         booking,
         hours,
         hourlyRate: HOURLY_RATE,
-
-        // Human-readable amount
         total,
-
-        // PayMongo-ready amount
         amountInCentavos,
       },
-      {
-        status: 201,
-      }
+      { status: 201 }
     );
-  } catch (e: any) {
-    console.error(
-      "POST /api/bookings error:",
-      e
-    );
+  } catch (error: unknown) {
+    console.error("POST /api/bookings error:", error);
 
-    /*
-     * Prisma unique constraint.
-     */
-    if (e?.code === "P2002") {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
       return NextResponse.json(
         {
           error:
-            "That time was just booked. Please choose another.",
+            "That booking reference already exists. Please try again.",
         },
         { status: 409 }
       );
     }
 
     return NextResponse.json(
-      {
-        error: "Could not create booking.",
-      },
-      {
-        status: 500,
-      }
+      { error: "Could not create booking." },
+      { status: 500 }
     );
   }
+}
+
+/**
+ * Validate YYYY-MM-DD and reject invalid calendar dates.
+ */
+function isValidDateString(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+
+  return (
+    !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value
+  );
 }
