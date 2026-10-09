@@ -24,6 +24,14 @@ function getLocalDate() {
 
   return `${year}-${month}-${day}`;
 }
+function formatTime(time: string) {
+  const [hours, minutes] = time.split(":").map(Number);
+
+  const period = hours >= 12 ? "PM" : "AM";
+  const displayHour = hours % 12 || 12;
+
+  return `${displayHour}:${String(minutes).padStart(2, "0")} ${period}`;
+}
 
 export default function BookingWidget() {
   const today = getLocalDate();
@@ -245,7 +253,7 @@ export default function BookingWidget() {
       return "Choose a time";
     }
 
-    return `${startTime} – ${endTime}`;
+    return `${formatTime(startTime)} – ${formatTime(endTime)}`;
   }, [startTime, endTime]);
 
   /*
@@ -479,8 +487,8 @@ export default function BookingWidget() {
                     }
                   >
                     <strong>
-                      {slot.startTime}
-                    </strong>
+  {formatTime(slot.startTime)}
+</strong>
 
                     <br />
 
