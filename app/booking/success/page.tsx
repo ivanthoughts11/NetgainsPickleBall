@@ -1,6 +1,5 @@
-
 import Link from "next/link";
-import { CheckCircle2, CalendarDays, ArrowRight } from "lucide-react";
+import styles from "../payment-status.module.css";
 
 export default async function BookingSuccessPage({
   searchParams,
@@ -10,62 +9,46 @@ export default async function BookingSuccessPage({
   const { reference } = await searchParams;
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-emerald-50 via-white to-lime-50 px-4 py-12">
-      <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-emerald-200/30 blur-3xl" />
-      <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-lime-200/40 blur-3xl" />
+    <main className={styles.page}>
+      <div className={`${styles.glow} ${styles.glowTop}`} />
+      <div className={`${styles.glow} ${styles.glowBottom}`} />
 
-      <section className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-2xl shadow-emerald-900/10">
-        <div className="h-2 bg-gradient-to-r from-emerald-500 to-lime-400" />
+      <section className={styles.card}>
+        <div className={styles.accent} />
 
-        <div className="px-6 py-10 text-center sm:px-10 sm:py-12">
-          <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-emerald-50 ring-8 ring-emerald-50/60">
-            <CheckCircle2
-              className="h-14 w-14 text-emerald-500"
-              strokeWidth={1.7}
-            />
+        <div className={styles.content}>
+          <div className={styles.iconCircle} aria-hidden="true">
+            ✓
           </div>
 
-          <p className="mb-3 text-sm font-bold uppercase tracking-[0.25em] text-emerald-600">
-            NET GAINS PICKLEBALL CLUB
-          </p>
+          <p className={styles.brand}>NET GAINS PICKLEBALL CLUB</p>
 
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-            Payment Successful!
-          </h1>
+          <h1 className={styles.heading}>Payment Successful!</h1>
 
-          <p className="mx-auto mt-4 max-w-sm leading-7 text-gray-500">
-            Thank you for booking with us! Your payment return was successful.
+          <p className={styles.description}>
+            Thank you for booking with NET GAINS! Your checkout was completed.
             We look forward to seeing you on the court.
           </p>
 
           {reference && (
-            <div className="mt-8 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-left">
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                Booking Reference
-              </p>
-              <p className="mt-2 break-all font-mono text-sm font-bold text-gray-800">
-                {reference}
-              </p>
+            <div className={styles.reference}>
+              <p className={styles.referenceLabel}>Booking Reference</p>
+              <p className={styles.referenceValue}>{reference}</p>
             </div>
           )}
 
-          <div className="mt-8 flex items-start gap-3 rounded-xl bg-gray-50 p-4 text-left">
-            <CalendarDays className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-            <p className="text-sm leading-6 text-gray-600">
-              Keep your booking reference for future inquiries. Your booking
-              confirmation should reflect the payment status once verified.
-            </p>
+          <div className={styles.note}>
+            Please keep your booking reference for future inquiries. Your
+            payment status is verified separately by our payment system.
           </div>
 
-          <Link
-            href="/"
-            className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-4 font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:bg-emerald-700"
-          >
-            Back to Homepage
-            <ArrowRight className="h-5 w-5" />
-          </Link>
+          <div className={styles.actions}>
+            <Link href="/" className={styles.button}>
+              Back to Homepage&nbsp; →
+            </Link>
+          </div>
 
-          <p className="mt-6 text-xs text-gray-400">
+          <p className={styles.footer}>
             Thank you for playing with NET GAINS.
           </p>
         </div>
@@ -73,4 +56,3 @@ export default async function BookingSuccessPage({
     </main>
   );
 }
-

@@ -1,0 +1,262 @@
+.page {
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+  min-height: 100svh;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 50%, #f0fdf4 100%);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.cancelPage {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffffff 50%, #ffedd5 100%);
+}
+
+.glow {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.12);
+  filter: blur(70px);
+  pointer-events: none;
+}
+
+.glowTop {
+  top: -100px;
+  left: -80px;
+}
+
+.glowBottom {
+  right: -80px;
+  bottom: -100px;
+}
+
+.cancelPage .glow {
+  background: rgba(249, 115, 22, 0.13);
+}
+
+.card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 510px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+  animation: appear 0.45s ease-out;
+}
+
+.accent {
+  height: 7px;
+  background: linear-gradient(90deg, #059669, #84cc16);
+}
+
+.cancelPage .accent {
+  background: linear-gradient(90deg, #f59e0b, #f97316);
+}
+
+.content {
+  padding: 42px 36px 34px;
+  text-align: center;
+}
+
+.iconCircle {
+  display: flex;
+  width: 88px;
+  height: 88px;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 26px;
+  border: 8px solid #ecfdf5;
+  border-radius: 50%;
+  background: #d1fae5;
+  color: #059669;
+  font-size: 42px;
+  font-weight: 700;
+}
+
+.cancelPage .iconCircle {
+  border-color: #fff7ed;
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+.brand {
+  margin: 0 0 12px;
+  color: #059669;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 3px;
+}
+
+.cancelPage .brand {
+  color: #ea580c;
+}
+
+.heading {
+  margin: 0;
+  color: #111827;
+  font-size: clamp(27px, 5vw, 35px);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -1px;
+}
+
+.description {
+  margin: 16px auto 0;
+  max-width: 390px;
+  color: #6b7280;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.reference {
+  margin-top: 28px;
+  padding: 17px;
+  border: 1px solid #a7f3d0;
+  border-radius: 14px;
+  background: #ecfdf5;
+  text-align: left;
+}
+
+.cancelPage .reference {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.referenceLabel {
+  margin: 0 0 8px;
+  color: #047857;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.cancelPage .referenceLabel {
+  color: #c2410c;
+}
+
+.referenceValue {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #1f2937;
+  font-family: monospace;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.note {
+  margin-top: 20px;
+  padding: 15px;
+  border-radius: 12px;
+  background: #f9fafb;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: left;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.button {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 20px;
+  border: 0;
+  border-radius: 12px;
+  background: #059669;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+  transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.button:hover {
+  transform: translateY(-2px);
+  background: #047857;
+  box-shadow: 0 8px 20px rgba(5, 150, 105, 0.2);
+}
+
+.cancelPage .button {
+  background: #ea580c;
+}
+
+.cancelPage .button:hover {
+  background: #c2410c;
+  box-shadow: 0 8px 20px rgba(234, 88, 12, 0.2);
+}
+
+.secondaryButton {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+}
+
+.secondaryButton:hover {
+  background: #f9fafb;
+  box-shadow: none;
+}
+
+.footer {
+  margin: 24px 0 0;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: 24px 14px;
+  }
+
+  .content {
+    padding: 34px 22px 28px;
+  }
+
+  .iconCircle {
+    width: 76px;
+    height: 76px;
+    font-size: 36px;
+  }
+
+  .brand {
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
+
+  .button {
+    transition: none;
+  }
+}
