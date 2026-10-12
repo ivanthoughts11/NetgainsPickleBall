@@ -1,5 +1,6 @@
 import Image from "next/image";
 import BookingWidget from "@/components/BookingWidget";
+import CourtGallery from "@/components/CourtGallery";
 import {
   CalendarDays,
   MapPin,
@@ -32,6 +33,7 @@ export default function Home() {
           <nav className="nav-links">
             <a href="#book">Book Court</a>
             <a href="#about">About</a>
+            <a href="#gallery">Gallery</a>
             <a href="#contact">Contact</a>
           </nav>
 
@@ -66,7 +68,7 @@ export default function Home() {
               </a>
 
               <a className="btn btn-ghost" href="#about">
-                Explore Club
+                Discover NET GAINS
               </a>
             </div>
           </div>
@@ -86,61 +88,128 @@ export default function Home() {
         </section>
 
         {/* About Section */}
-        <section id="about" className="section">
-          <div className="container">
-            <div className="section-head">
-              <div className="eyebrow">THE CLUB</div>
+       <section id="about" className="section about-section">
+  <div className="container">
+    <div className="about-hero">
+      <div className="about-intro">
+        <div className="eyebrow">THE NET GAINS EXPERIENCE</div>
 
-              <h2>Built for better games.</h2>
+        <h2>
+          Built for better games.
+          <br />
+          <span>Made for your people.</span>
+        </h2>
 
-              <p>
-                A clean, modern court experience inspired by the NET GAINS
-                design palette — deep teal, light teal, charcoal and white.
-              </p>
-            </div>
+        <p>
+          More than just a place to play. NET GAINS brings people
+          together through friendly competition, unforgettable rallies,
+          and a shared love for the game.
+        </p>
 
-            <div className="features">
-              <div className="card">
-                <div className="icon">
-                  <CalendarDays />
-                </div>
+        <a href="#book" className="about-button">
+          Get on the Court <span>↗</span>
+        </a>
+      </div>
 
-                <h3>Easy Booking</h3>
+      <div className="about-visual">
+        <div className="about-visual-top">
+          <span>YOUR NEXT GAME STARTS HERE</span>
+          <span className="about-ng-mark">NG.</span>
+        </div>
 
-                <p>
-                  See available hours and reserve the court online without
-                  sending back-and-forth messages.
-                </p>
-              </div>
+        <div className="about-court-art" aria-hidden="true">
+          <div className="court-line court-line-outer" />
+          <div className="court-line court-line-middle" />
+          <div className="court-line court-line-left" />
+          <div className="court-line court-line-right" />
+          <div className="court-net" />
+          <div className="court-center-circle" />
+        </div>
 
-              <div className="card">
-                <div className="icon">
-                  <Users />
-                </div>
-
-                <h3>Made for Your Crew</h3>
-
-                <p>
-                  Book for 2–8 players and keep your game details in one
-                  reservation.
-                </p>
-              </div>
-
-              <div className="card">
-                <div className="icon">
-                  <ShieldCheck />
-                </div>
-
-                <h3>No Double Booking</h3>
-
-                <p>
-                  Each court slot is protected by the database so two
-                  customers cannot reserve the same hour.
-                </p>
-              </div>
-            </div>
+        <div className="about-visual-bottom">
+          <div>
+            <span className="about-mini-label">THE GAME</span>
+            <h3>Play. Connect. Grow.</h3>
           </div>
-        </section>
+          <span className="about-visual-arrow">↗</span>
+        </div>
+      </div>
+    </div>
+
+    <div className="about-divider">
+      <span>WHY PLAY AT NET GAINS?</span>
+      <span className="about-divider-line" />
+      <span>01 — 03</span>
+    </div>
+
+    <div className="features about-features">
+      <div className="card about-card">
+        <div className="about-card-top">
+          <div className="icon">
+            <CalendarDays />
+          </div>
+          <span className="about-card-index">01</span>
+        </div>
+
+        <h3>Easy Booking</h3>
+
+        <p>
+          Find an available time, reserve your slot online,
+          and spend less time planning and more time playing.
+        </p>
+
+        <a href="#book" className="about-card-link">
+          Reserve your game <span>↗</span>
+        </a>
+      </div>
+
+      <div className="card about-card">
+        <div className="about-card-top">
+          <div className="icon">
+            <Users />
+          </div>
+          <span className="about-card-index">02</span>
+        </div>
+
+        <h3>Bring Your Crew</h3>
+
+        <p>
+          Rally your friends, challenge your teammates,
+          and turn every match into a chance to connect.
+        </p>
+
+        <a href="#book" className="about-card-link">
+          Plan your next match <span>↗</span>
+        </a>
+      </div>
+
+      <div className="card about-card">
+        <div className="about-card-top">
+          <div className="icon">
+            <ShieldCheck />
+          </div>
+          <span className="about-card-index">03</span>
+        </div>
+
+        <h3>Play with Confidence</h3>
+
+        <p>
+          Organized reservations help keep your chosen court
+          time clear and avoid overlapping bookings.
+        </p>
+
+        <a href="#book" className="about-card-link">
+          Find your time <span>↗</span>
+        </a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+         {/* Court Gallery */}
+
+  <CourtGallery />
 
         {/* Booking Section */}
         <section
